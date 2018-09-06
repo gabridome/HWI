@@ -11,7 +11,7 @@ import sys
 from .device_ids import trezor_device_ids, keepkey_device_ids, ledger_device_ids,\
                         digitalbitbox_device_ids, coldcard_device_ids
 from .serializations import PSBT, Base64ToHex, HexToBase64, hash160
-from .base58 import xpub_to_address, xpub_to_pub_hex, get_xpub_fingerprint_as_id
+from .base58 import xpub_to_address, xpub_to_pub_hex, get_xpub_fingerprint_as_id, get_xpub_fingerprint_hex
 from bip32utils import BIP32Key
 
 # Error codes
@@ -22,6 +22,39 @@ UNKNWON_DEVICE_TYPE = -4
 INVALID_TX = -5
 NO_PASSWORD = -6
 BAD_ARGUMENT = -7
+
+# Get the client for the device
+def get_client(device_type, device_path):
+    # Open the device
+    try:
+        device = hid.device()
+        device_path = bytes(device_path.encode())
+        device.open_path(device_path)
+    except Exception as e:
+        print(e)
+        return {'error':'Unable to connect to specified device','code':DEVICE_CONN_ERROR}
+
+    # Make a client
+    if device_type == 'trezor':
+        from . import trezori
+        client = trezori.TrezorClient(device=device, path=device_path)
+    elif device_type == 'keepkey':
+        from . import keepkeyi
+        client = keepkeyi.KeepKeyClient(device=device, path=device_path)
+    elif device_type == 'ledger':
+        from . import ledgeri
+        client = ledgeri.LedgerClient(device=device)
+    elif device_type == 'digitalbitbox':
+        if not password:
+            return {'error':'Password must be supplied for digital BitBox','code':NO_PASSWORD}
+        from . import digitalbitboxi
+        client = digitalbitboxi.DigitalBitboxClient(device=device, password=password)
+    elif device_type == 'coldcard':
+        from . import coldcardi
+        client = coldcardi.ColdCardClient(device=device)
+    else:
+        return {'error':'Unknown device type specified','code':UNKNWON_DEVICE_TYPE}
+    return client
 
 # Get a list of all available hardware wallets
 def enumerate():
@@ -170,35 +203,7 @@ def process_commands(args):
     if device_type is None:
         return {'error':'You must specify a device type for all commands except enumerate','code':NO_DEVICE_TYPE}
 
-    # Open the device
-    try:
-        device = hid.device()
-        device_path = bytes(device_path.encode())
-        device.open_path(device_path)
-    except Exception as e:
-        print(e)
-        return {'error':'Unable to connect to specified device','code':DEVICE_CONN_ERROR}
-
-    # Make a client
-    if device_type == 'trezor':
-        from . import trezori
-        client = trezori.TrezorClient(device=device, path=device_path)
-    elif device_type == 'keepkey':
-        from . import keepkeyi
-        client = keepkeyi.KeepKeyClient(device=device, path=device_path)
-    elif device_type == 'ledger':
-        from . import ledgeri
-        client = ledgeri.LedgerClient(device=device)
-    elif device_type == 'digitalbitbox':
-        if not password:
-            return {'error':'Password must be supplied for digital BitBox','code':NO_PASSWORD}
-        from . import digitalbitboxi
-        client = digitalbitboxi.DigitalBitboxClient(device=device, password=password)
-    elif device_type == 'coldcard':
-        from . import coldcardi
-        client = coldcardi.ColdCardClient(device=device)
-    else:
-        return {'error':'Unknown device type specified','code':UNKNWON_DEVICE_TYPE}
+    client = get_client(device_type, device_path)
     client.is_testnet = args.testnet
 
     # Do the commands
