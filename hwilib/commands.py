@@ -118,6 +118,7 @@ def process_commands(args):
     parser.add_argument('--device-type', '-t', help='Specify the type of device that will be connected')
     parser.add_argument('--password', '-p', help='Device password if it has one (e.g. DigitalBitbox)')
     parser.add_argument('--testnet', help='Use testnet prefixes', action='store_true')
+    parser.add_argument('--debug', help='Print debug statements', action='store_true')
 
     subparsers = parser.add_subparsers(description='Commands', dest='command')
 
@@ -200,6 +201,7 @@ def process_commands(args):
     else:
         return {'error':'Unknown device type specified','code':UNKNWON_DEVICE_TYPE}
     client.is_testnet = args.testnet
+    client.debug = args.debug
 
     # Do the commands
     result = args.func(args, client)
