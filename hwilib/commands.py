@@ -83,6 +83,16 @@ def enumerate():
                 'serial_number':d['serial_number']})
     return result
 
+def find_device(fingerprint):
+    devices = enumerate()
+    for d in devices:
+        client = get_client(d['type'], d['path'])
+        master_xpub = client.get_pubkey_at_path('m/0h')['xpub']
+        master_fpr = get_xpub_fingerprint_hex(master_xpub)
+        if master_fpr == fingerprint:
+            return client
+        client.close()
+
 def getmasterxpub(args, client):
     return client.get_master_xpub()
 
@@ -151,6 +161,7 @@ def process_commands(args):
     parser.add_argument('--device-type', '-t', help='Specify the type of device that will be connected')
     parser.add_argument('--password', '-p', help='Device password if it has one (e.g. DigitalBitbox)')
     parser.add_argument('--testnet', help='Use testnet prefixes', action='store_true')
+    parser.add_argument('--fingerprint', '-f', help='The first 4 bytes of the hash160 of the master public key')
 
     subparsers = parser.add_subparsers(description='Commands', dest='command')
 
@@ -198,13 +209,17 @@ def process_commands(args):
     if command == 'enumerate':
         return args.func()
 
-    if device_path is None:
-        return {'error':'You must specify a device path for all commands except enumerate','code':NO_DEVICE_PATH}
-    if device_type is None:
-        return {'error':'You must specify a device type for all commands except enumerate','code':NO_DEVICE_TYPE}
+    # Auto detect if that is set
+    if 'fingerprint' in args:
+        client = find_device(args.fingerprint)
+    else:
+        if device_path is None:
+            return {'error':'You must specify a device path for all commands except enumerate','code':NO_DEVICE_PATH}
+        if device_type is None:
+            return {'error':'You must specify a device type for all commands except enumerate','code':NO_DEVICE_TYPE}
 
-    client = get_client(device_type, device_path)
-    client.is_testnet = args.testnet
+        client = get_client(device_type, device_path)
+        client.is_testnet = args.testnet
 
     # Do the commands
     result = args.func(args, client)
